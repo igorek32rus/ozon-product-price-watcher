@@ -58,4 +58,5 @@ const saveData = async (data) => {
   }
 
   await browser.close();
+  await fs.writeFile('cookies.json', "[]");   // clear cookies
 })();
