@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs').promises; //for working with files
+const config = require("./config.json")
 
 //save cookie function
 const saveCookie = async (page) => {
@@ -15,6 +16,15 @@ const loadCookie = async (page) => {
     await page.setCookie(...cookies);
 }
 
+const getData = async () => {
+  const jsonStr = await fs.readFile('data.json');
+  return JSON.parse(jsonStr);
+}
+
+const saveData = async (data) => {
+  await fs.writeFile('data.json', JSON.stringify(data, null, 2));
+}
+
 (async () => {
   await fs.writeFile('cookies.json', "[]");   // clear cookies
 
@@ -22,7 +32,7 @@ const loadCookie = async (page) => {
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Windows NT 5.1; rv:5.0) Gecko/20100101 Firefox/5.0')
   await loadCookie(page); //load cookie
-  await page.goto('https://www.ozon.ru/product/jacobs-monarch-intense-kofe-rastvorimyy-150-g-33871138/?asb=f6eiFDMP8VRrUFn5wAPstGxdXBhSMKPf2lqoaLEIA1wvBQ4vyYzk8l0C0BOjZ%252FzD&asb2=9m0P7J0fV8rotOPVSPAulLsYNMvlOpMdHe9DeughNhwL4C_DjbOiMT4ZGBN5wKaLNM5J7UXUI3fWSud97kudOWYs8YG-XWvXfG9MtaWPc8j5VTWAjewFj5781EQtKPakjmnWoajwHjz2C19bzKevWg&avtc=1&avte=2&avts=1666115663&keywords=jacobs+intense&sh=tWlsT5anMA',
+  await page.goto(config.WATCHING_URL,
     { waitUntil: 'domcontentloaded' });
   await saveCookie(page); //save cookie
 
@@ -39,7 +49,13 @@ const loadCookie = async (page) => {
     image: json["image"]
   }
 
-  console.log(JSON.stringify(info));
+  const prevData = await getData()
+
+  if (prevData.price > info.price) {
+    const sendMessagePage = await browser.newPage();
+    await sendMessagePage.goto(`https://maker.ifttt.com/trigger/${config.IFTTT_EVENT}/with/key/${config.IFTTT_KEY}?value1=${info.name}&value2=${prevData.price}&value3=${info.price}`);
+    await saveData(info)
+  }
 
   await browser.close();
 })();
