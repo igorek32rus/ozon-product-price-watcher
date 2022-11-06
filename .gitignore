@@ -1,3 +1,5 @@
 node_modules
 config.json
+data.json
+cookies.json
 log.txt

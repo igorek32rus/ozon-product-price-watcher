@@ -1,38 +1,61 @@
 const puppeteer = require('puppeteer')
-const fs = require('fs').promises
+const fs = require('fs')
+const fsPromises = fs.promises
 const config = require("./config.json")
 
 // сохранение куки
 const saveCookie = async (page) => {
     const cookies = await page.cookies()
     const cookieJson = JSON.stringify(cookies, null, 2)
-    await fs.writeFile(__dirname + '/cookies.json', cookieJson)
+    await fsPromises.writeFile(__dirname + '/cookies.json', cookieJson)
 }
 
 // загрузка куки
 const loadCookie = async (page) => {
-    const cookieJson = await fs.readFile(__dirname + '/cookies.json')
+    const cookieJson = await fsPromises.readFile(__dirname + '/cookies.json')
     const cookies = JSON.parse(cookieJson)
     await page.setCookie(...cookies)
 }
 
 const getData = async () => {
-    const jsonStr = await fs.readFile(__dirname + '/data.json')
+    const jsonStr = await fsPromises.readFile(__dirname + '/data.json')
     return JSON.parse(jsonStr)
 }
 
 const saveData = async (data) => {
-    await fs.writeFile(__dirname + '/data.json', JSON.stringify(data, null, 2))
+    await fsPromises.writeFile(__dirname + '/data.json', JSON.stringify(data, null, 2))
+}
+
+const checkFileExist = (fileName) => {
+    return new Promise((resolve, reject) => {
+        if (fs.existsSync(__dirname + `/${fileName}`)) resolve(true)
+        resolve(false)
+    })
+}
+
+const fileExist = async (fileName, defaultStr = "") => {
+    try {
+        const logExist = await checkFileExist(fileName)
+        if (!logExist) {    // если файл лога не создан - создать
+            await fsPromises.writeFile(__dirname + `/${fileName}`, defaultStr)
+        }
+    } catch (error) {
+        console.log("Ошибка", error);
+    }
+}
+
+const dateTimeToString = (date) => {
+    return date.getDate() + "." + date.getMonth() + "." + date.getFullYear() + " " +
+        date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds()
 }
 
 (async () => {
     try {
-        if (!fs.exists(__dirname + '/log.txt')) {   // если файл лога не создан - создать
-            await fs.writeFile(__dirname + '/log.txt', "")
-        }
+        await fileExist("log.txt", "")
+        await fileExist("data.json", "{}")
 
-        let logFile = await fs.readFile(__dirname + '/log.txt')
-        await fs.writeFile(__dirname + '/cookies.json', "[]");   // очистка куки
+        let logFile = await fsPromises.readFile(__dirname + '/log.txt')
+        await fsPromises.writeFile(__dirname + '/cookies.json', "[]");   // очистка куки
 
         const browser = await puppeteer.launch()
         const page = await browser.newPage()
@@ -46,6 +69,7 @@ const saveData = async (data) => {
         const result = await page.evaluate(() => document.querySelector('script[type="application/ld+json"]').innerHTML)
 
         const json = JSON.parse(result)
+        const date = new Date()
         const info = {
             name: json["name"],
             description: json["description"],
@@ -53,7 +77,7 @@ const saveData = async (data) => {
             price: json["offers"]["price"],
             currency: json["offers"]["priceCurrency"],
             image: json["image"],
-            date: new Date()
+            date: dateTimeToString(date)
         }
 
         const prevData = await getData()
@@ -65,24 +89,17 @@ const saveData = async (data) => {
         await saveData(info)
 
         await browser.close()
-        await fs.writeFile(__dirname + '/cookies.json', "[]")   // очистка куки
+        await fsPromises.writeFile(__dirname + '/cookies.json', "[]")   // очистка куки
 
-        const date = new Date()
-        logFile = `[${
-            date.getDate() + "." + date.getMonth() + "." + date.getFullYear() + " " +
-            date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds()
-        }] Update successful\n` + logFile
-        await fs.writeFile(__dirname + '/log.txt', logFile)   // успешно в лог
+        logFile = `[${dateTimeToString(date)}] Update successful\n` + logFile
+        await fsPromises.writeFile(__dirname + '/log.txt', logFile)   // успешно в лог
     } catch (error) {
         console.log(error)
 
-        let logFile = await fs.readFile(__dirname + '/log.txt')
+        let logFile = await fsPromises.readFile(__dirname + '/log.txt')
         const date = new Date()
-        logFile = `[${
-            date.getDate() + "." + date.getMonth() + "." + date.getFullYear() + " " +
-            date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds()
-        }] Update error. ${error}\n` + logFile
-        await fs.writeFile(__dirname + '/log.txt', logFile)   // ошибка в лог
+        logFile = `[${dateTimeToString(date)}] Update error. ${error}\n` + logFile
+        await fsPromises.writeFile(__dirname + '/log.txt', logFile)   // ошибка в лог
 
         process.exit()
     }
